@@ -13,17 +13,24 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Setup NuGet
+      uses: nuget/setup-nuget@v1
+      with:
+        nuget-version: 'latest'
     - name: Add MSBuild to PATH
       uses: microsoft/setup-msbuild@v1.0.2
     - name: Restore NuGet packages
       run: nuget restore DarkEnforcer.sln
-      continue-on-error: true
-    - name: Build solution
-      run: msbuild DarkEnforcer.sln /p:Configuration=Release /p:Platform="x64"
+    - name: Build x64 solution
+      run: msbuild DarkEnforcer.sln /p:Configuration=Release /p:Platform="x64" /m /verbosity:normal
+    - name: Build x86 solution
+      run: msbuild DarkEnforcer.sln /p:Configuration=Release /p:Platform="Win32" /m /verbosity:normal
     - name: Upload artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: DarkEnforcer-Windows-Binary
+        name: DarkEnforcer-Windows-Binaries
         path: |
+          **/x64/Release/*.exe
+          **/x64/Release/*.dll
           **/Release/*.exe
           **/Release/*.dll
