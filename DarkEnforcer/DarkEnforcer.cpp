@@ -1,7 +1,9 @@
 #include "framework.h"
 #include "DarkEnforcer.h"
+#include <shellapi.h>
 #include <commctrl.h>
 
+#pragma comment(lib, "Shell32.lib")
 #pragma comment(lib, "Comctl32.lib")
 #pragma comment(linker,"/manifestdependency:\"" \
     "type='win32' " \
@@ -97,6 +99,29 @@ BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
+NOTIFYICONDATA nid;
+HHOOK keyboardHook = NULL;
+HWND g_hwnd = NULL;
+
+LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
+    if (nCode >= 0 && wParam == WM_KEYUP) {
+        KBDLLHOOKSTRUCT *pkbhs = (KBDLLHOOKSTRUCT *)lParam;
+        
+        // Check for Alt+B combination
+        if ((pkbhs->vkCode == 'B') && 
+            (GetAsyncKeyState(VK_MENU) & 0x8000)) {
+            
+            // Exit the application
+            PostMessage(g_hwnd, WM_CLOSE, 0, 0);
+            return 1; // Block the key event
+        }
+    }
+    
+    return CallNextHookEx(keyboardHook, nCode, wParam, lParam);
+}
+
+LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
+
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
                      _In_ LPWSTR    lpCmdLine,
@@ -105,12 +130,38 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
-    INITCOMMONCONTROLSEX InitCtrls;
-    InitCtrls.dwSize = sizeof(InitCtrls);
-    InitCtrls.dwICC = ICC_WIN95_CLASSES;
+    // Initialize global strings
+    LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
+    LoadStringW(hInstance, IDC_DARKENFORCER, szWindowClass, MAX_LOADSTRING);
+    MyRegisterClass(hInstance);
 
+    // Create a hidden window to handle messages
+    nCmdShow = SW_HIDE; // Start hidden
 
+    // Perform application initialization:
+    if (!InitInstance(hInstance, nCmdShow))
+    {
+        return FALSE;
+    }
 
+    // Add icon to system tray
+    ZeroMemory(&nid, sizeof(NOTIFYICONDATA));
+    nid.cbSize = sizeof(NOTIFYICONDATA);
+    nid.hWnd = g_hwnd;
+    nid.uID = 1001;
+    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    nid.uCallbackMessage = WM_USER + 1;
+    nid.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_DARKENFORCER));
+    wcscpy_s(nid.szTip, L"Dark Enforcer - Right-click to exit");
+
+    Shell_NotifyIcon(NIM_ADD, &nid);
+
+    // Install low-level keyboard hook for Alt+B
+    keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, GetModuleHandle(NULL), 0);
+
+    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_DARKENFORCER));
+
+    // Load the DLL and set up hooks
     HINSTANCE hinstDLL = LoadLibrary(_T("DarkDll.dll"));
     HOOKPROC DarkHookProc = (HOOKPROC)GetProcAddress(hinstDLL, "DarkHookProc");
     HOOKPROC DarkHookProcRet = (HOOKPROC)GetProcAddress(hinstDLL, "DarkHookProcRet");
@@ -127,35 +178,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         _SetWindowCompositionAttribute(hWnd, (WINDOWCOMPOSITIONATTRIBDATA*)lParam);
         return TRUE;
     };
-    while (true)
-    {
-        EnumWindows(proc, (LPARAM)&data);
-        Sleep(33);
-    }
-    return 1;
-
-
-
-    //local hooks
-    //HHOOK hook = SetWindowsHookEx(WH_CALLWNDPROC, DarkHookProc, hInstance, GetCurrentThreadId());
-    ////HHOOK hookRet = SetWindowsHookEx(WH_CALLWNDPROCRET, DarkHookProcRet, hInstance, GetCurrentThreadId());
-
-    // Initialize global strings
-    LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
-    LoadStringW(hInstance, IDC_DARKENFORCER, szWindowClass, MAX_LOADSTRING);
-    MyRegisterClass(hInstance);
-
-    nCmdShow = SW_MINIMIZE;
-
-    // Perform application initialization:
-    if (!InitInstance (hInstance, nCmdShow))
-    {
-        return FALSE;
-    }
-
-    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_DARKENFORCER));
 
     MSG msg;
+
+    // Continue updating windows in a timer-based approach
+    SetTimer(g_hwnd, 1, 33, NULL); // Timer ID 1, fires every 33ms
 
     // Main message loop:
     while (GetMessage(&msg, nullptr, 0, 0))
@@ -167,6 +194,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         }
     }
 
+    // Cleanup
+    KillTimer(g_hwnd, 1);
+    Shell_NotifyIcon(NIM_DELETE, &nid);
+    UnhookWindowsHookEx(keyboardHook);
     UnhookWindowsHookEx(hookRet);
     UnhookWindowsHookEx(hook);
 
@@ -223,6 +254,9 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
       return FALSE;
    }
 
+   // Store the window handle globally
+   g_hwnd = hWnd;
+
    ShowWindow(hWnd, nCmdShow);
    UpdateWindow(hWnd);
 
@@ -247,6 +281,48 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
         HWND btn = CreateWindow(L"Button", L"My button", WS_CHILD | WS_TABSTOP | WS_VISIBLE, 11, 11, 111, 55, hWnd, (HMENU)13, hInst, 0);
     }
+        break;
+    case WM_TIMER:
+        {
+            // Handle periodic update of dark mode for all windows
+            if (wParam == 1) // Timer ID 1
+            {
+                fnSetWindowCompositionAttribute _SetWindowCompositionAttribute = reinterpret_cast<fnSetWindowCompositionAttribute>(GetProcAddress(GetModuleHandleW(L"user32.dll"), "SetWindowCompositionAttribute"));
+                
+                BOOL dark = TRUE;
+                WINDOWCOMPOSITIONATTRIBDATA data = { WCA_USEDARKMODECOLORS, &dark, sizeof(dark) };
+                WNDENUMPROC proc = [](HWND hWnd, LPARAM lParam)
+                {
+                    _SetWindowCompositionAttribute(hWnd, (WINDOWCOMPOSITIONATTRIBDATA*)lParam);
+                    return TRUE;
+                };
+                EnumWindows(proc, (LPARAM)&data);
+            }
+        }
+        break;
+    case WM_USER+1: // System tray notification
+        {
+            if (lParam == WM_RBUTTONUP) // Right click
+            {
+                POINT pt;
+                GetCursorPos(&pt);
+                
+                HMENU hMenu = CreatePopupMenu();
+                AppendMenu(hMenu, MF_STRING, 1001, L"Exit");
+                
+                // Make the window track mouse messages to dismiss the menu
+                SetForegroundWindow(hWnd);
+                
+                UINT clicked = TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_NONOTIFY, pt.x, pt.y, 0, hWnd, NULL);
+                
+                if (clicked == 1001) // Exit selected
+                {
+                    PostMessage(hWnd, WM_CLOSE, 0, 0);
+                }
+                
+                DestroyMenu(hMenu);
+            }
+        }
         break;
     case WM_COMMAND:
         {
