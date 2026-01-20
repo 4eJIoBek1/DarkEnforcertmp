@@ -26,7 +26,7 @@ jobs:
     - name: Build x86 solution
       run: msbuild DarkEnforcer.sln /p:Configuration=Release /p:Platform="Win32" /m /verbosity:normal
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: DarkEnforcer-Windows-Binaries
         path: |
