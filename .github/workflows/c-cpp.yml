@@ -9,15 +9,21 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
     - uses: actions/checkout@v4
-    - name: configure
-      run: ./configure
-    - name: make
-      run: make
-    - name: make check
-      run: make check
-    - name: make distcheck
-      run: make distcheck
+    - name: Add MSBuild to PATH
+      uses: microsoft/setup-msbuild@v1.0.2
+    - name: Restore NuGet packages
+      run: nuget restore DarkEnforcer.sln
+      continue-on-error: true
+    - name: Build solution
+      run: msbuild DarkEnforcer.sln /p:Configuration=Release /p:Platform="x64"
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: DarkEnforcer-Windows-Binary
+        path: |
+          **/Release/*.exe
+          **/Release/*.dll
