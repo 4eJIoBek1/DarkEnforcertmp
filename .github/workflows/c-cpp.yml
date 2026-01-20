@@ -24,7 +24,7 @@ jobs:
     - name: Build x64 solution
       run: msbuild DarkEnforcer.sln /p:Configuration=Release /p:Platform="x64" /m /verbosity:normal
     - name: Build x86 solution
-      run: msbuild DarkEnforcer.sln /p:Configuration=Release /p:Platform="Win32" /m /verbosity:normal
+      run: msbuild DarkEnforcer.sln /p:Configuration=Release /p:Platform="x86" /m /verbosity:normal
     # Optional: Add any outputs if needed using the new method
     # Example of how to use new GITHUB_OUTPUT method if needed:
     # - name: Set output example
