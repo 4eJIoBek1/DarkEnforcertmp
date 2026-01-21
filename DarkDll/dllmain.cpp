@@ -4,7 +4,9 @@
 
 #include <Uxtheme.h>
 #include <map>
+#include <Psapi.h>
 #pragma comment(lib, "uxtheme.lib")
+#pragma comment(lib, "psapi.lib")
 
 //Win32 APIs. Credits to:
 //https://github.com/ysc3839/win32-darkmode/blob/master/win32-darkmode/DarkMode.h
@@ -32,6 +34,29 @@ static bool g_isDarkModeSupported = false;
 static bool g_isDarkModeEnabled = false;
 static bool g_isExplorer = false;
 static bool g_isWhitelisted = false; ///
+
+// Function to check if a window belongs to explorer.exe
+bool IsExplorerWindow(HWND hwnd) {
+    DWORD processId;
+    GetWindowThreadProcessId(hwnd, &processId);
+    
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processId);
+    if (hProcess == NULL) {
+        return false;
+    }
+    
+    TCHAR processName[MAX_PATH] = TEXT("<unknown>");
+    HMODULE hMod;
+    DWORD cbNeeded;
+    
+    if (EnumProcessModules(hProcess, &hMod, sizeof(hMod), &cbNeeded)) {
+        GetModuleBaseName(hProcess, hMod, processName, sizeof(processName) / sizeof(TCHAR));
+    }
+    
+    CloseHandle(hProcess);
+    
+    return (_tcsicmp(processName, TEXT("explorer.exe")) == 0);
+}
 
 
 using fnRtlGetNtVersionNumbers = void (WINAPI*)(LPDWORD major, LPDWORD minor, LPDWORD build);
@@ -279,6 +304,13 @@ PAYLOADAPI LRESULT CALLBACK DarkHookProc(INT code, WPARAM wParam, LPARAM lParam)
             if (code >= HC_ACTION && lParam != 0)
             {
                 CWPSTRUCT* msg = (CWPSTRUCT*)lParam;
+                
+                // Skip processing for explorer.exe windows to prevent hangs
+                if (IsExplorerWindow(msg->hwnd))
+                {
+                    return CallNextHookEx(NULL, code, wParam, lParam);
+                }
+                
                 switch (msg->message) {
                 case WM_NCCREATE:
                     if (!g_isDarkModeInited)
@@ -481,6 +513,13 @@ PAYLOADAPI LRESULT CALLBACK DarkHookProcRet(INT code, WPARAM wParam, LPARAM lPar
             if (code >= HC_ACTION && lParam != 0)
             {
                 CWPRETSTRUCT* msg = (CWPRETSTRUCT*)lParam;
+                
+                // Skip processing for explorer.exe windows to prevent hangs
+                if (IsExplorerWindow(msg->hwnd))
+                {
+                    return CallNextHookEx(NULL, code, wParam, lParam);
+                }
+                
                 switch (msg->message) 
                 {
                 case WM_CREATE:

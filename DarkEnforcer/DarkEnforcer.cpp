@@ -2,6 +2,8 @@
 #include "DarkEnforcer.h"
 #include <shellapi.h>
 #include <commctrl.h>
+#include <Psapi.h>
+#pragma comment(lib, "Psapi.lib")
 
 #pragma comment(lib, "Shell32.lib")
 #pragma comment(lib, "Comctl32.lib")
@@ -99,13 +101,42 @@ BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 BOOL CALLBACK       EnumWindowsProc(HWND hWnd, LPARAM lParam);
+bool                IsExplorerWindow(HWND hwnd);
 
 NOTIFYICONDATA nid;
 HHOOK keyboardHook = NULL;
 HWND g_hwnd = NULL;
 
+// Function to check if a window belongs to explorer.exe
+bool IsExplorerWindow(HWND hwnd) {
+    DWORD processId;
+    GetWindowThreadProcessId(hwnd, &processId);
+    
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processId);
+    if (hProcess == NULL) {
+        return false;
+    }
+    
+    TCHAR processName[MAX_PATH] = TEXT("<unknown>");
+    HMODULE hMod;
+    DWORD cbNeeded;
+    
+    if (EnumProcessModules(hProcess, &hMod, sizeof(hMod), &cbNeeded)) {
+        GetModuleBaseName(hProcess, hMod, processName, sizeof(processName) / sizeof(TCHAR));
+    }
+    
+    CloseHandle(hProcess);
+    
+    return (_tcsicmp(processName, TEXT("explorer.exe")) == 0);
+}
+
 // Callback function for EnumWindows to apply dark mode to all windows
 BOOL CALLBACK EnumWindowsProc(HWND hWnd, LPARAM lParam) {
+    // Skip processing for explorer.exe windows to prevent hangs
+    if (IsExplorerWindow(hWnd)) {
+        return TRUE; // Continue enumeration but skip this window
+    }
+    
     fnSetWindowCompositionAttribute _SetWindowCompositionAttribute = reinterpret_cast<fnSetWindowCompositionAttribute>(GetProcAddress(GetModuleHandleW(L"user32.dll"), "SetWindowCompositionAttribute"));
     if (_SetWindowCompositionAttribute != nullptr) {
         _SetWindowCompositionAttribute(hWnd, (WINDOWCOMPOSITIONATTRIBDATA*)lParam);
