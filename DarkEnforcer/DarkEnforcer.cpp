@@ -173,7 +173,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     BOOL dark = TRUE;
     WINDOWCOMPOSITIONATTRIBDATA data = { WCA_USEDARKMODECOLORS, &dark, sizeof(dark) };
     SetPriorityClass(GetCurrentProcess(), BELOW_NORMAL_PRIORITY_CLASS);
-    WNDENUMPROC proc = [](HWND hWnd, LPARAM lParam)
+    WNDENUMPROC proc = [_SetWindowCompositionAttribute](HWND hWnd, LPARAM lParam)
     {
         _SetWindowCompositionAttribute(hWnd, (WINDOWCOMPOSITIONATTRIBDATA*)lParam);
         return TRUE;
@@ -291,7 +291,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 
                 BOOL dark = TRUE;
                 WINDOWCOMPOSITIONATTRIBDATA data = { WCA_USEDARKMODECOLORS, &dark, sizeof(dark) };
-                WNDENUMPROC proc = [](HWND hWnd, LPARAM lParam)
+                WNDENUMPROC proc = [_SetWindowCompositionAttribute](HWND hWnd, LPARAM lParam)
                 {
                     _SetWindowCompositionAttribute(hWnd, (WINDOWCOMPOSITIONATTRIBDATA*)lParam);
                     return TRUE;
