@@ -368,7 +368,7 @@ PAYLOADAPI LRESULT CALLBACK DarkHookProc(INT code, WPARAM wParam, LPARAM lParam)
                         dbgLog(L"WM_INITDIALOG");
                         HWND deff = (HWND)msg->wParam;
                         HWND hWnd = msg->hwnd;
-                        TCHAR claz[256], text[256];
+                        TCHAR claz[256];
                         RealGetWindowClass(msg->hwnd, claz, 256);
 
                         if (_tcscmp(claz, _T("Button")) == 0)
