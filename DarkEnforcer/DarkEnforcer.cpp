@@ -98,10 +98,20 @@ ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
+BOOL CALLBACK       EnumWindowsProc(HWND hWnd, LPARAM lParam);
 
 NOTIFYICONDATA nid;
 HHOOK keyboardHook = NULL;
 HWND g_hwnd = NULL;
+
+// Callback function for EnumWindows to apply dark mode to all windows
+BOOL CALLBACK EnumWindowsProc(HWND hWnd, LPARAM lParam) {
+    fnSetWindowCompositionAttribute _SetWindowCompositionAttribute = reinterpret_cast<fnSetWindowCompositionAttribute>(GetProcAddress(GetModuleHandleW(L"user32.dll"), "SetWindowCompositionAttribute"));
+    if (_SetWindowCompositionAttribute != nullptr) {
+        _SetWindowCompositionAttribute(hWnd, (WINDOWCOMPOSITIONATTRIBDATA*)lParam);
+    }
+    return TRUE; // Continue enumeration
+}
 
 LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode >= 0 && wParam == WM_KEYUP) {
@@ -173,11 +183,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     BOOL dark = TRUE;
     WINDOWCOMPOSITIONATTRIBDATA data = { WCA_USEDARKMODECOLORS, &dark, sizeof(dark) };
     SetPriorityClass(GetCurrentProcess(), BELOW_NORMAL_PRIORITY_CLASS);
-    WNDENUMPROC proc = [_SetWindowCompositionAttribute](HWND hWnd, LPARAM lParam)
-    {
-        _SetWindowCompositionAttribute(hWnd, (WINDOWCOMPOSITIONATTRIBDATA*)lParam);
-        return TRUE;
-    };
+    
+    // Apply dark mode initially to all existing windows
+    EnumWindows(EnumWindowsProc, (LPARAM)&data);
 
     MSG msg;
 
@@ -291,12 +299,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 
                 BOOL dark = TRUE;
                 WINDOWCOMPOSITIONATTRIBDATA data = { WCA_USEDARKMODECOLORS, &dark, sizeof(dark) };
-                WNDENUMPROC proc = [_SetWindowCompositionAttribute](HWND hWnd, LPARAM lParam)
-                {
-                    _SetWindowCompositionAttribute(hWnd, (WINDOWCOMPOSITIONATTRIBDATA*)lParam);
-                    return TRUE;
-                };
-                EnumWindows(proc, (LPARAM)&data);
+                EnumWindows(EnumWindowsProc, (LPARAM)&data);
             }
         }
         break;
